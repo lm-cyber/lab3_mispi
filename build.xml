@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Lab3" default="build">
+    
+    <taskdef resource="net/sf/antcontrib/antcontrib.properties">
+        <classpath>
+            <pathelement location="lib/lib/ant-contrib-1.0b3.jar"/>
+        </classpath>
+    </taskdef>
+
+    <property file="build.properties"/>
+
+    <taskdef resource="net/sf/antcontrib/antlib.xml"/>
+
+    <path id="lib.main.path">
+        <fileset dir="${lib.main.dir}" includes="**/*.jar"/>
+    </path>
+
+    <path id="lib.test.path">
+        <path refid="lib.main.path"/>
+        <fileset dir="${lib.test.dir}" includes="**/*.jar"/>
+    </path>
+
+    <macrodef name="generate-hash" description="Генерация хешей файлов проекта и запись в MANIFEST.MF">
+        <attribute name="algorithm"/>
+        <sequential>
+            <signjar jar="${build.dir}/${ant.project.name}.jar"
+                     alias="ant_keystore"
+                     storepass="password"
+                     digestalg="@{algorithm}"/>
+        </sequential>
+    </macrodef>
+
+
+
+    <target name="compile" description="Компиляция кода проекта">
+        <echo>Компиляция основного кода...</echo>
+        <property name="srcdir" value="${src.main.dir}"/>
+        <mkdir dir="${build.classes.dir}"/>
+        <javac srcdir="${srcdir}"
+               destdir="${build.classes.dir}"
+               includeantruntime="false">
+            <classpath refid="lib.main.path"/>
+        </javac>
+
+        <echo>Компиляция тестов...</echo>
+        <mkdir dir="${test.dir}"/>
+        <javac srcdir="${src.test.dir}"
+               destdir="${test.dir}"
+               includeantruntime="false">
+            <classpath>
+                <path refid="lib.test.path"/>
+                <pathelement location="${build.classes.dir}"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="build" depends="compile" description="Создание jar-файла">
+        <echo>Копирование библиотек приложения в WEB-INF/lib...</echo>
+        <copy todir="${build.web-inf.lib}">
+            <path refid="lib.main.path"/>
+        </copy>
+
+        <echo>Копирование всех файлов в WEB-INF...</echo>
+        <copy todir="${build.web-inf}">
+            <fileset dir="${src.main.web}/WEB-INF"/>
+        </copy>
+
+        <echo>Копирование ресурсов...</echo>
+        <copy todir="${build.classes.dir}">
+            <fileset dir="${src.main.resources}"/>
+        </copy>
+
+        <echo>Копирование всех статических файлов в корень jar-архива, игнорируя директорию WEB-INF...</echo>
+        <copy todir="${build.dir}">
+            <fileset dir="${src.main.web}">
+                <exclude name="WEB-INF/**"/>
+            </fileset>
+        </copy>
+
+        <echo>Создание jar-архива...</echo>
+        <property name="jar" value="${build.dir}/${ant.project.name}.jar"/>
+        <jar destfile="${jar}" basedir="build/WEB-INF/classes">
+             <manifest>
+                 <attribute name="Main–Class" value="${ant.project.name}"/>
+               </manifest>
+         </jar>
+
+     </target>
+     <target name="xml">
+        <xmlvalidate failonerror="true">
+            <fileset dir="./src">
+                <include name="**/*.xml"/>
+            </fileset>
+        </xmlvalidate>
+    </target>
+
+    <target name="clean" description="Удаление скомпилированных файлов">
+        <echo>Удаление директории с классами...</echo>
+        <delete dir="${build.dir}"/>
+        <echo>Удаление директории с тестами...</echo>
+        <delete dir="${test.dir}"/>
+        <echo>Удаление директории с native2ascii ресурсами...</echo>
+        <delete dir="${native2ascii.resources}"/>
+    </target>
+
+    <target name="test" depends="build" description="Компиляция и выполнение тестов">
+        <echo>Создание директории для отчетов по тестам...</echo>
+        <mkdir dir="${test.report.dir}"/>
+        <echo>Исполнение тестов...</echo>
+        <junitlauncher printsummary="true" haltonfailure="true">
+            <classpath>
+                <path refid="lib.test.path"/>
+                <pathelement location="${build.dir}"/>
+                <pathelement location="${build.classes.dir}"/>
+                <pathelement location="${test.dir}"/>
+            </classpath>
+
+            <testclasses outputdir="${test.report.dir}">
+                <fileset dir="${test.dir}">
+                    <include name="**/*Test*.class"/>
+                </fileset>
+                <listener type="legacy-plain"
+                          sendSysOut="true"
+                          sendSysErr="true"/>
+                <fork/>
+            </testclasses>
+        </junitlauncher>
+    </target>
+
+
+    <target name="music" description="Воспроизведение музыки после сборки jar-файла">
+        <sound>
+            <success source="${music.success.file}"/>
+            <fail source="${music.fail.file}"/>
+        </sound>
+        <antcall target="build"/>
+        <echo>Воспроизведение звукового файла...</echo>
+    </target>
+    <target name="scp" depends="build">
+        <scp file="${build.dir}/${ant.project.name}.jar"
+             todir="s333580@se.ifmo.ru:~/mispi3_lab"
+             password="tROf&#125;9750" trust="true" port="2222"/>
+    </target>
+
+
+
+    <target name="native2ascii" description="Преобразование native2ascii для копий файлов локализации">
+        <native2ascii src="${src.main.resources}"
+                      dest="${native2ascii.resources}"
+                      includes="**/*.properties"/>
+    </target>
+
+
+    <target name="team">
+        <mkdir dir="zipa"/>
+        <fileset dir="${target.dir}"/>
+
+        <exec executable="svn"
+        dir="/home/void/.svnrepos/mispi3/">
+            <arg value="update"/>
+            <arg value="--revision COMMITTED *"/>
+        </exec>
+        <antcall target="build"/>
+        <copy file="build/Lab3.jar"
+              tofile="svn/${ant.project.name}v1.war"
+              overwrite="false">
+        </copy>
+
+        <exec executable="svn"
+        dir="/home/void/.svnrepos/mispi3/">
+            <arg value="update"/>
+            <arg value="--revision COMMITTED - 1 *"/>
+        </exec>
+        <antcall target="build"/>
+        <copy file="build/Lab3.jar"
+              tofile="svn/${ant.project.name}v2.war"
+              overwrite="false">
+        </copy>
+
+        <exec executable="svn"
+        dir="/home/void/.svnrepos/mispi3/">
+            <arg value="updeate"/>
+            <arg value="-r COMMITTED - 2 *"/>
+        </exec>
+        <antcall target="build"/>
+        <copy file="build/Lab3.jar"
+              tofile="svn/${ant.project.name}v3.war"
+              overwrite="false">
+    </copy>
+
+        <exec executable="svn"
+        dir="/home/void/.svnrepos/mispi3/">
+            <arg value="updeate"/>
+            <arg value="-r COMMITTED - 3 *"/>
+        </exec>
+        <antcall target="build"/>
+        <copy file="build/Lab3.jar"
+              tofile="svn/${ant.project.name}v4.war"
+              overwrite="false">
+        </copy>
+
+        <zip destfile="${target.dir}/zipa.zip"
+             basedir="zipa"/>
+    </target>
+
+     <target name="history">
+        <trycatch>
+            <try>
+                <antcall target="compile"/>
+            </try>
+            <catch>
+                <exec executable="svn">
+                    <arg value="log"/>
+                    <arg value="--quiet"/>
+                </exec>
+
+                <exec executable="bash" dir="." failonerror="true" outputproperty="revision.count">
+                    <arg line="/c svn log --quiet | find /c 'r'" />
+                </exec>
+
+                <condition property="is.revision.count.zero">
+                    <equals arg1="${revision.count}" arg2="0" />
+                </condition>
+
+                <if>
+                    <isset property="is.revision.count.zero" />
+                    <then>
+                        <fail message="Больше нет рабочих ревизий..."/>
+                    </then>
+                </if>
+
+                <echo message="Try to load previous version"/>
+                <exec executable="svn">
+                    <arg value="merge"/>
+                    <arg value="-c" />
+                    <arg value="-1" />
+                    <arg value="." />
+                </exec>
+
+                <exec executable="bash" dir="." failonerror="true">
+                    <arg line="/c svn diff > diff.txt" />
+                </exec>
+
+                <antcall target="history"/>
+            </catch>
+        </trycatch>
+    </target>
+
+    <target name="report" depends="test" description="Reports test result to xml file">
+        <mkdir dir="report"/>
+
+
+
+
+
+
+        <exec executable="svn">
+            <arg value="add"/>
+            <arg value="*"/>
+        </exec>
+
+        <exec executable="svn">
+            <arg value="commit"/>
+            <arg value="-m 'prekol_${rev.id}'"/>
+        </exec>
+        <exec executable="svn">
+            <arg value="update"/>
+        </exec>
+
+        <propertyfile file="build.properties">
+            <entry key="rev.id" type="int" operation="+" value="1"/>
+        </propertyfile>
+
+    </target>
+
+
+</project>
